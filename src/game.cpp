@@ -1,10 +1,22 @@
 #include "game.h"
 #include "glhck/glhck.h"
+#include "gas.h"
+
 #include <vector>
 #include <string>
 #include <iostream>
+#include <algorithm>
 
 float const GRID_SIZE = 1.0f;
+
+enum Direction { UP, DOWN, LEFT, RIGHT };
+
+struct Coordinates {
+  int x;
+  int y;
+};
+
+Coordinates DIRECTIONS[] = {{0, 1}, {0, -1}, {-1, 0}, {1, 0}};
 
 struct Object {
   enum Type {
@@ -20,12 +32,19 @@ Object const NO_OBJECT = { Object::NONE, nullptr };
 struct Tile
 {
   enum Type {
-    FLOOR, WALL
+    FLOOR, WALL, TARGET
   };
 
   Type type;
   Object object;
+  Coordinates coordinates;
   glhckObject* o;
+};
+
+struct Animation
+{
+  glhckObject* o;
+  gasAnimation* a;
 };
 
 struct Game
@@ -34,6 +53,7 @@ struct Game
   std::vector<std::vector<Tile>> level;
   unsigned int levelWidth;
   unsigned int levelHeight;
+  std::vector<Animation> animations;
 };
 
 Tile newFloorTile(int x, int y)
@@ -42,7 +62,7 @@ Tile newFloorTile(int x, int y)
   glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, -GRID_SIZE);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 128, 224, 128, 255);
-  Tile tile { Tile::FLOOR, NO_OBJECT, o };
+  Tile tile { Tile::FLOOR, NO_OBJECT, {x, y}, o };
   return tile;
 }
 
@@ -52,7 +72,16 @@ Tile newWallTile(int x, int y)
   glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, 0);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 96, 96, 96, 255);
-  Tile tile { Tile::FLOOR, NO_OBJECT, o };
+  Tile tile { Tile::WALL, NO_OBJECT, {x, y}, o };
+  return tile;
+}
+Tile newTargetTile(int x, int y)
+{
+  glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
+  glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, -GRID_SIZE);
+  glhckObjectMaterial(o, glhckMaterialNew(NULL));
+  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 192, 255, 192, 64);
+  Tile tile { Tile::TARGET, NO_OBJECT, {x, y}, o };
   return tile;
 }
 
@@ -76,20 +105,105 @@ Object newBoxObject(int x, int y)
   return object;
 }
 
+bool gameWon(Game* game)
+{
+  for(std::vector<Tile>& rows : game->level)
+  {
+    for(Tile& tile : rows)
+    {
+      if(tile.type == Tile::TARGET && tile.object.type != Object::BOX)
+      {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+Coordinates findPlayer(Game* game)
+{
+  for(std::vector<Tile>& rows : game->level)
+  {
+    for(Tile& tile : rows)
+    {
+      if(tile.object.type == Object::PLAYER)
+      {
+        return tile.coordinates;
+      }
+    }
+  }
+
+  return {-1, -1};
+}
+
+Tile& getTile(Game* game, int x, int y)
+{
+  return game->level.at(y).at(x);
+}
+
+void move(Game* game, Direction direction)
+{
+  Coordinates current = findPlayer(game);
+  Coordinates& delta = DIRECTIONS[direction];
+  Coordinates destination = {current.x + delta.x, current.y + delta.y};
+  Tile& currentTile = getTile(game, current.x, current.y);
+  Tile& destinationTile = getTile(game, destination.x, destination.y);
+
+  if(destinationTile.type == Tile::WALL)
+  {
+    return;
+  }
+
+  if(destinationTile.object.type != Object::NONE)
+  {
+    Coordinates pushDestination = {destination.x + delta.x, destination.y + delta.y};
+    Tile& pushDestinationTile = getTile(game, pushDestination.x, pushDestination.y);
+    if(pushDestinationTile.type == Tile::WALL || pushDestinationTile.object.type != Object::NONE)
+    {
+      return;
+    }
+
+    gasAnimation* parts[] = {
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, pushDestination.x * GRID_SIZE, 0.5),
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Y, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.5)
+    };
+    Animation animation = {
+      destinationTile.object.o,
+      gasParallelAnimationNew(parts, 2)
+    };
+    game->animations.push_back(animation);
+    pushDestinationTile.object = destinationTile.object;
+    destinationTile.object = NO_OBJECT;
+  }
+
+  gasAnimation* parts[] = {
+    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, destination.x * GRID_SIZE, 0.5),
+    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Y, GAS_EASING_LINEAR, destination.y * GRID_SIZE, 0.5)
+  };
+  Animation animation = {
+    currentTile.object.o,
+    gasParallelAnimationNew(parts, 2)
+  };
+  game->animations.push_back(animation);
+  destinationTile.object = currentTile.object;
+  currentTile.object = NO_OBJECT;
+}
+
 Game* newGame()
 {
   Game* game = new Game;
   std::vector<std::string> rows {
     "############",
     "#..........#",
-    "#..........#",
+    "#....x.....#",
     "#..........#",
     "#...###....#",
     "#..........#",
     "#..@..B....#",
     "#..........#",
     "#..........#",
-    "#....B.....#",
+    "#x...B.....#",
     "#..........#",
     "############",
   };
@@ -112,6 +226,10 @@ Game* newGame()
       else if(c == '.')
       {
         levelRow.push_back(newFloorTile(x, y));
+      }
+      else if(c == 'x')
+      {
+        levelRow.push_back(newTargetTile(x, y));
       }
       else if(c == '@')
       {
@@ -136,11 +254,11 @@ Game* newGame()
   game->levelHeight = game->level.size();
 
   game->camera = glhckCameraNew();
-  glhckCameraProjection(game->camera, GLHCK_PROJECTION_ORTHOGRAPHIC);
+  glhckCameraProjection(game->camera, GLHCK_PROJECTION_PERSPECTIVE);
   glhckObjectPositionf(glhckCameraGetObject(game->camera),
                        game->levelWidth * GRID_SIZE / 2,
-                       -game->levelHeight * GRID_SIZE,
-                       game->levelWidth * GRID_SIZE*2.5);
+                       -(game->levelWidth * GRID_SIZE / 2),
+                       game->levelWidth * GRID_SIZE);
   glhckObjectTargetf(glhckCameraGetObject(game->camera),
                      game->levelWidth * GRID_SIZE / 2,
                      game->levelHeight * GRID_SIZE / 2,
@@ -156,6 +274,48 @@ Game* newGame()
 
 void playGame(Game* game, glfwContext& ctx)
 {
+  if(game->animations.empty())
+  {
+    if(gameWon(game))
+    {
+      ctx.running = false;
+    }
+    else if(glfwGetKey(ctx.window, GLFW_KEY_UP))
+    {
+      move(game, UP);
+    }
+    else if(glfwGetKey(ctx.window, GLFW_KEY_DOWN))
+    {
+      move(game, DOWN);
+    }
+    else if(glfwGetKey(ctx.window, GLFW_KEY_LEFT))
+    {
+      move(game, LEFT);
+    }
+    else if(glfwGetKey(ctx.window, GLFW_KEY_RIGHT))
+    {
+      move(game, RIGHT);
+    }
+  }
+  else
+  {
+    for(Animation& animation : game->animations)
+    {
+      gasAnimate(animation.a, animation.o, ctx.deltaTime);
+
+      if(gasAnimationGetState(animation.a) == GAS_ANIMATION_STATE_FINISHED)
+      {
+        gasAnimationFree(animation.a);
+        animation.a = nullptr;
+      }
+    }
+
+    auto removeIter = std::remove_if(game->animations.begin(), game->animations.end(), [](Animation& animation) {
+      return animation.a == nullptr;
+    });
+    game->animations.erase(removeIter, game->animations.end());
+  }
+
   glhckRenderClear(GLHCK_DEPTH_BUFFER | GLHCK_COLOR_BUFFER);
   glhckCameraUpdate(game->camera);
 
