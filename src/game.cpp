@@ -334,7 +334,7 @@ void playGame(Game* game, glfwContext& ctx)
     game->animations.erase(removeIter, game->animations.end());
   }
 
-  glhckRenderClear(GLHCK_DEPTH_BUFFER | GLHCK_COLOR_BUFFER);
+  glhckRenderClear(GLHCK_DEPTH_BUFFER_BIT | GLHCK_COLOR_BUFFER_BIT);
   glhckCameraUpdate(game->camera);
 
   for(std::vector<Tile>& rows : game->level)
