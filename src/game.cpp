@@ -137,14 +137,15 @@ Game* newGame()
 
   game->camera = glhckCameraNew();
   glhckCameraProjection(game->camera, GLHCK_PROJECTION_ORTHOGRAPHIC);
-  /*glhckObjectPositionf(glhckCameraGetObject(game->camera),
+  glhckObjectPositionf(glhckCameraGetObject(game->camera),
                        game->levelWidth * GRID_SIZE / 2,
                        -game->levelHeight * GRID_SIZE,
-                       game->levelWidth * GRID_SIZE*2.5);*/
+                       game->levelWidth * GRID_SIZE*2.5);
   glhckObjectTargetf(glhckCameraGetObject(game->camera),
                      game->levelWidth * GRID_SIZE / 2,
                      game->levelHeight * GRID_SIZE / 2,
                      0);
+
   glhckCameraRange(game->camera, 0.1f, 100.0f);
   glhckCameraFov(game->camera, 45);
   glhckCameraUpdate(game->camera);
@@ -155,22 +156,6 @@ Game* newGame()
 
 void playGame(Game* game, glfwContext& ctx)
 {
-  if(glfwGetKey(ctx.window, GLFW_KEY_LEFT) == GLFW_PRESS)
-  {
-    glhckObjectRotatef(glhckCameraGetObject(game->camera), 0.0f, 0.001f, 0.0f);
-  }
-  if(glfwGetKey(ctx.window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-  {
-    glhckObjectRotatef(glhckCameraGetObject(game->camera), 0.0f, -0.001f, 0.0f);
-  }
-  if(glfwGetKey(ctx.window, GLFW_KEY_UP) == GLFW_PRESS)
-  {
-    glhckObjectMovef(glhckCameraGetObject(game->camera), 0.0f, 0.0f, 0.1f);
-  }
-  if(glfwGetKey(ctx.window, GLFW_KEY_DOWN) == GLFW_PRESS)
-  {
-    glhckObjectMovef(glhckCameraGetObject(game->camera), 0.0f, 0.0f, -0.1f);
-  }
   glhckRenderClear(GLHCK_DEPTH_BUFFER | GLHCK_COLOR_BUFFER);
   glhckCameraUpdate(game->camera);
 
