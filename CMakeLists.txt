@@ -26,3 +26,4 @@ add_executable(qb ${SOURCES})
 
 target_link_libraries(qb glfw glhck gas ${GLFW_LIBRARIES} ${Boost_LIBRARIES})
 
+file(COPY model DESTINATION .)

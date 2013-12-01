@@ -16,7 +16,8 @@ struct Coordinates {
   int y;
 };
 
-Coordinates DIRECTIONS[] = {{0, 1}, {0, -1}, {-1, 0}, {1, 0}};
+Coordinates DIRECTIONS[] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}};
+float DIRECTION_ANGLES[] = {0, 180, 90, 270};
 
 struct Object {
   enum Type {
@@ -59,9 +60,9 @@ struct Game
 Tile newFloorTile(int x, int y)
 {
   glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
-  glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, -GRID_SIZE);
+  glhckObjectPositionf(o, x * GRID_SIZE, -GRID_SIZE, y * GRID_SIZE);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
-  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 128, 224, 128, 255);
+  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 128, (x + y) % 2 ? 224 : 192, 128, 255);
   Tile tile { Tile::FLOOR, NO_OBJECT, {x, y}, o };
   return tile;
 }
@@ -69,7 +70,7 @@ Tile newFloorTile(int x, int y)
 Tile newWallTile(int x, int y)
 {
   glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
-  glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, 0);
+  glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 96, 96, 96, 255);
   Tile tile { Tile::WALL, NO_OBJECT, {x, y}, o };
@@ -78,7 +79,7 @@ Tile newWallTile(int x, int y)
 Tile newTargetTile(int x, int y)
 {
   glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
-  glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, -GRID_SIZE);
+  glhckObjectPositionf(o, x * GRID_SIZE, -GRID_SIZE, y * GRID_SIZE);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 192, 255, 192, 64);
   Tile tile { Tile::TARGET, NO_OBJECT, {x, y}, o };
@@ -87,10 +88,22 @@ Tile newTargetTile(int x, int y)
 
 Object newPlayerObject(int x, int y)
 {
-  glhckObject* o = glhckCubeNew(GRID_SIZE / 3.0f);
-  glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, 0);
-  glhckObjectMaterial(o, glhckMaterialNew(NULL));
-  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 96, 96, 192, 255);
+  //glhckObject* o = glhckCubeNew(GRID_SIZE / 3.0f);
+  glhckImportModelParameters animatedParams = *glhckImportDefaultModelParameters();
+  animatedParams.animated = 1;
+
+  glhckObject* o = glhckModelNew("model/player.glhckm", GRID_SIZE, &animatedParams);
+  //glhckObjectDrawAABB(o, 1);
+  glhckObjectPositionf(o, x * GRID_SIZE, -0.5, y * GRID_SIZE);
+  unsigned int numAnimations = 0;
+  glhckAnimation** animations = glhckObjectAnimations(o, &numAnimations);
+  std::cout << "Total animations: " << numAnimations << std::endl;
+  for(int i = 0; i < numAnimations; ++i) {
+    std::cout << "Animation " << i << ": " << glhckAnimationGetName(animations[i]) << std::endl;
+  }
+  //glhckObjectMaterial(o, glhckMaterialNew(NULL));
+  //glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 96, 96, 192, 255);
+
   Object object { Object::PLAYER, o };
   return object;
 }
@@ -98,7 +111,7 @@ Object newPlayerObject(int x, int y)
 Object newBoxObject(int x, int y)
 {
   glhckObject* o = glhckCubeNew(2 * GRID_SIZE / 5.0f);
-  glhckObjectPositionf(o, x * GRID_SIZE, y * GRID_SIZE, 0);
+  glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 192, 192, 64, 255);
   Object object { Object::BOX, o };
@@ -166,7 +179,7 @@ void move(Game* game, Direction direction)
 
     gasAnimation* parts[] = {
       gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, pushDestination.x * GRID_SIZE, 0.5),
-      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Y, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.5)
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.5)
     };
     Animation animation = {
       destinationTile.object.o,
@@ -177,13 +190,18 @@ void move(Game* game, Direction direction)
     destinationTile.object = NO_OBJECT;
   }
 
+  float angle = glhckObjectGetRotation(currentTile.object.o)->y;
+  float dir = DIRECTION_ANGLES[direction];
+  float a = fabs(dir - angle) > fabs((360 - dir) - angle) ? 360 - dir: dir;
   gasAnimation* parts[] = {
     gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, destination.x * GRID_SIZE, 0.5),
-    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Y, GAS_EASING_LINEAR, destination.y * GRID_SIZE, 0.5)
+    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, destination.y * GRID_SIZE, 0.5),
+    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.25),
+    gasModelAnimationNew(currentTile.object.o, "Walk", 0.5)
   };
   Animation animation = {
     currentTile.object.o,
-    gasParallelAnimationNew(parts, 2)
+    gasParallelAnimationNew(parts, 4)
   };
   game->animations.push_back(animation);
   destinationTile.object = currentTile.object;
@@ -257,12 +275,12 @@ Game* newGame()
   glhckCameraProjection(game->camera, GLHCK_PROJECTION_PERSPECTIVE);
   glhckObjectPositionf(glhckCameraGetObject(game->camera),
                        game->levelWidth * GRID_SIZE / 2,
-                       -(game->levelWidth * GRID_SIZE / 2),
-                       game->levelWidth * GRID_SIZE);
+                       game->levelWidth * GRID_SIZE,
+                       -(game->levelWidth * GRID_SIZE / 2));
   glhckObjectTargetf(glhckCameraGetObject(game->camera),
                      game->levelWidth * GRID_SIZE / 2,
-                     game->levelHeight * GRID_SIZE / 2,
-                     0);
+                     0,
+                     game->levelHeight * GRID_SIZE / 2);
 
   glhckCameraRange(game->camera, 0.1f, 100.0f);
   glhckCameraFov(game->camera, 45);

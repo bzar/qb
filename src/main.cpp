@@ -7,8 +7,8 @@
 
 #include <cstdlib>
 
-int const WINDOW_WIDTH = 800;
-int const WINDOW_HEIGHT = 480;
+int const WINDOW_WIDTH = 1600;
+int const WINDOW_HEIGHT = 960;
 
 bool RUNNING = true;
 
