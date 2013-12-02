@@ -17,7 +17,7 @@ struct Coordinates {
 };
 
 Coordinates DIRECTIONS[] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}};
-float DIRECTION_ANGLES[] = {0, 180, 90, 270};
+float DIRECTION_ANGLES[] = {180, 0, 270, 90};
 
 struct Object {
   enum Type {
@@ -168,6 +168,8 @@ void move(Game* game, Direction direction)
     return;
   }
 
+  bool pushing = false;
+
   if(destinationTile.object.type != Object::NONE)
   {
     Coordinates pushDestination = {destination.x + delta.x, destination.y + delta.y};
@@ -177,9 +179,10 @@ void move(Game* game, Direction direction)
       return;
     }
 
+    pushing = true;
     gasAnimation* parts[] = {
-      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, pushDestination.x * GRID_SIZE, 0.5),
-      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.5)
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, pushDestination.x * GRID_SIZE, 0.75),
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.75)
     };
     Animation animation = {
       destinationTile.object.o,
@@ -192,12 +195,13 @@ void move(Game* game, Direction direction)
 
   float angle = glhckObjectGetRotation(currentTile.object.o)->y;
   float dir = DIRECTION_ANGLES[direction];
-  float a = fabs(dir - angle) > fabs((360 - dir) - angle) ? 360 - dir: dir;
+  float a = dir; //fabs(dir - angle) > fabs((360 - dir) - angle) ? 360 - dir: dir;
+  float t = pushing ? 0.75 : 0.5;
   gasAnimation* parts[] = {
-    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, destination.x * GRID_SIZE, 0.5),
-    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, destination.y * GRID_SIZE, 0.5),
+    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, destination.x * GRID_SIZE, t),
+    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, destination.y * GRID_SIZE, t),
     gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.25),
-    gasModelAnimationNew(currentTile.object.o, "Walk", 0.5)
+    gasModelAnimationNew(currentTile.object.o, pushing ? "Push" : "Walk", t)
   };
   Animation animation = {
     currentTile.object.o,
