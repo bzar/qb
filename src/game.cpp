@@ -17,7 +17,7 @@ struct Coordinates {
 };
 
 Coordinates DIRECTIONS[] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}};
-float DIRECTION_ANGLES[] = {180, 0, 270, 90};
+float DIRECTION_ANGLES[] = {0, 180, 90, 270};
 
 struct Object {
   enum Type {
@@ -92,7 +92,7 @@ Object newPlayerObject(int x, int y)
   glhckImportModelParameters animatedParams = *glhckImportDefaultModelParameters();
   animatedParams.animated = 1;
 
-  glhckObject* o = glhckModelNew("model/player.glhckm", GRID_SIZE, &animatedParams);
+  glhckObject* o = glhckModelNew("model/pig.glhckm", GRID_SIZE, &animatedParams);
   //glhckObjectDrawAABB(o, 1);
   glhckObjectPositionf(o, x * GRID_SIZE, -0.5, y * GRID_SIZE);
   unsigned int numAnimations = 0;
@@ -195,13 +195,13 @@ void move(Game* game, Direction direction)
 
   float angle = glhckObjectGetRotation(currentTile.object.o)->y;
   float dir = DIRECTION_ANGLES[direction];
-  float a = dir; //fabs(dir - angle) > fabs((360 - dir) - angle) ? 360 - dir: dir;
+  float a = dir - angle > 180 ? (dir - 360) - angle : dir - angle;
   float t = pushing ? 0.75 : 0.5;
   gasAnimation* parts[] = {
     gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, destination.x * GRID_SIZE, t),
     gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, destination.y * GRID_SIZE, t),
-    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.25),
-    gasModelAnimationNew(currentTile.object.o, pushing ? "Push" : "Walk", t)
+    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.25),
+    gasModelAnimationNew(currentTile.object.o, pushing ? "Run" : "Run", t)
   };
   Animation animation = {
     currentTile.object.o,
