@@ -180,13 +180,18 @@ void move(Game* game, Direction direction)
     }
 
     pushing = true;
+    gasAnimation* moveParts[] = {
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, pushDestination.x * GRID_SIZE, 0.7),
+      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.7)
+    };
     gasAnimation* parts[] = {
-      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, pushDestination.x * GRID_SIZE, 0.75),
-      gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, pushDestination.y * GRID_SIZE, 0.75)
+      gasPauseAnimationNew(0.1),
+      gasParallelAnimationNew(moveParts, 2),
+      gasPauseAnimationNew(0.1)
     };
     Animation animation = {
       destinationTile.object.o,
-      gasParallelAnimationNew(parts, 2)
+      gasSequentialAnimationNew(parts, 3)
     };
     game->animations.push_back(animation);
     pushDestinationTile.object = destinationTile.object;
@@ -195,17 +200,50 @@ void move(Game* game, Direction direction)
 
   float angle = glhckObjectGetRotation(currentTile.object.o)->y;
   float dir = DIRECTION_ANGLES[direction];
+  Coordinates dirc = DIRECTIONS[direction];
   float a = dir - angle > 180 ? (dir - 360) - angle : dir - angle;
-  float t = pushing ? 0.75 : 0.5;
-  gasAnimation* parts[] = {
-    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, destination.x * GRID_SIZE, t),
-    gasNumberAnimationNewTo(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, destination.y * GRID_SIZE, t),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.25),
-    gasModelAnimationNew(currentTile.object.o, pushing ? "Run" : "Run", t)
-  };
+
+  gasAnimation* anim;
+  if(pushing)
+  {
+    gasAnimation* moveParts1[] = {
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, dirc.x * GRID_SIZE/3, 0.1),
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, dirc.y * GRID_SIZE/3, 0.1),
+    };
+    gasAnimation* moveParts2[] = {
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, dirc.x * GRID_SIZE, 0.7),
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, dirc.y * GRID_SIZE, 0.7),
+    };
+    gasAnimation* moveParts3[] = {
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, -dirc.x * GRID_SIZE/3, 0.1),
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, -dirc.y * GRID_SIZE/3, 0.1),
+    };
+    gasAnimation* moveParts[] = {
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.1),
+      gasParallelAnimationNew(moveParts1, 2),
+      gasParallelAnimationNew(moveParts2, 2),
+      gasParallelAnimationNew(moveParts3, 2)
+    };
+    gasAnimation* parts[] = {
+      gasSequentialAnimationNew(moveParts, 4),
+      gasModelAnimationNew(currentTile.object.o, "Push", 1.0)
+    };
+    anim = gasParallelAnimationNew(parts, 2);
+  }
+  else
+  {
+    gasAnimation* parts[] = {
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, a, 0.1),
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, dirc.x * GRID_SIZE, 0.5),
+      gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, dirc.y * GRID_SIZE, 0.5),
+      gasModelAnimationNew(currentTile.object.o, "Run", 0.5)
+    };
+    anim = gasParallelAnimationNew(parts, 4);
+  }
+
   Animation animation = {
     currentTile.object.o,
-    gasParallelAnimationNew(parts, 4)
+    anim
   };
   game->animations.push_back(animation);
   destinationTile.object = currentTile.object;
