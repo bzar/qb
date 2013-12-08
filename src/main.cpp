@@ -6,12 +6,13 @@
 
 #include <cstdlib>
 
-int const WINDOW_WIDTH = 1600;
-int const WINDOW_HEIGHT = 960;
+int const WINDOW_WIDTH = 800;
+int const WINDOW_HEIGHT = 480;
 
 bool RUNNING = true;
 
 void windowCloseCallback(GLFWwindow* window);
+void windowSizeCallback(GLFWwindow *handle, int width, int height);
 void gameloop(glfwContext& ctx);
 
 int main(int argc, char** argv)
@@ -34,6 +35,7 @@ int main(int argc, char** argv)
   glfwMakeContextCurrent(window);
 
   glfwSetWindowCloseCallback(window, windowCloseCallback);
+  glfwSetWindowSizeCallback(window, windowSizeCallback);
 
   glfwSwapInterval(1);
 
@@ -61,6 +63,11 @@ void windowCloseCallback(GLFWwindow* window)
 {
   glfwContext* ctx = static_cast<glfwContext*>(glfwGetWindowUserPointer(window));
   ctx->running = false;
+}
+
+void windowSizeCallback(GLFWwindow *window, int width, int height)
+{
+  glhckDisplayResize(width, height);
 }
 
 void gameloop(glfwContext& ctx)
