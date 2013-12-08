@@ -254,23 +254,34 @@ void move(Game* game, Direction direction)
   currentTile.object = NO_OBJECT;
 }
 
-Game* newGame()
+void unloadLevel(Game* game)
 {
-  Game* game = new Game;
-  std::vector<std::string> rows {
-    "############",
-    "#..........#",
-    "#....x.....#",
-    "#..........#",
-    "#...###....#",
-    "#..........#",
-    "#..@..B....#",
-    "#..........#",
-    "#..........#",
-    "#x...B.....#",
-    "#..........#",
-    "############",
-  };
+  for(std::vector<Tile>& rows : game->level)
+  {
+    for(Tile& tile : rows)
+    {
+      glhckObjectFree(tile.o);
+      if(tile.object.type != Object::NONE)
+      {
+        glhckObjectFree(tile.object.o);
+      }
+      if(tile.object.a)
+      {
+        gasAnimationFree(tile.object.a);
+      }
+    }
+  }
+
+  game->level.clear();
+  if(game->camera)
+  {
+    glhckCameraFree(game->camera);
+  }
+}
+
+void loadLevel(Game* game, std::vector<std::string> const& rows)
+{
+  unloadLevel(game);
 
   game->animating = false;
   game->levelWidth = 0;
@@ -333,6 +344,29 @@ Game* newGame()
   glhckCameraRange(game->camera, 0.1f, 100.0f);
   glhckCameraFov(game->camera, 45);
   glhckCameraUpdate(game->camera);
+}
+
+Game* newGame()
+{
+  Game* game = new Game;
+  game->camera = nullptr;
+
+  std::vector<std::string> rows {
+    "############",
+    "#..........#",
+    "#....x.....#",
+    "#..........#",
+    "#...###....#",
+    "#..........#",
+    "#..@..B....#",
+    "#..........#",
+    "#..........#",
+    "#x...B.....#",
+    "#..........#",
+    "############",
+  };
+
+  loadLevel(game, rows);
 
   return game;
 }
@@ -395,19 +429,8 @@ void playGame(Game* game, glfwContext& ctx)
   }
 }
 
-
 void endGame(Game* game)
 {
-  for(std::vector<Tile>& rows : game->level)
-  {
-    for(Tile& tile : rows)
-    {
-      glhckObjectFree(tile.o);
-      if(tile.object.type != Object::NONE)
-      {
-        glhckObjectFree(tile.object.o);
-      }
-    }
-  }
+  unloadLevel(game);
   delete game;
 }
