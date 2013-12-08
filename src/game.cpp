@@ -96,10 +96,8 @@ Object newPlayerObject(int x, int y)
 
 Object newBoxObject(int x, int y)
 {
-  glhckObject* o = glhckCubeNew(2 * GRID_SIZE / 5.0f);
+  glhckObject* o = glhckModelNew("model/box.glhckm", 2 * GRID_SIZE / 5.0f, nullptr); //glhckCubeNew(2 * GRID_SIZE / 5.0f);
   glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
-  glhckObjectMaterial(o, glhckMaterialNew(NULL));
-  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 192, 192, 64, 255);
   Object object { Object::BOX, o, UP, nullptr };
   return object;
 }
