@@ -1,6 +1,5 @@
 #include "GLFW/glfw3.h"
 #include "glhck/glhck.h"
-#include "gas.h"
 
 #include "glfwcontext.h"
 #include "game.h"

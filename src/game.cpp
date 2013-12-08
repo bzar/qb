@@ -1,6 +1,6 @@
 #include "game.h"
 #include "glhck/glhck.h"
-#include "gas.h"
+#include "gasxx.h"
 
 #include <vector>
 #include <string>
@@ -27,9 +27,10 @@ struct Object {
   Type type;
   glhckObject* o;
   Direction facing;
+  gasAnimation* a;
 };
 
-Object const NO_OBJECT = { Object::NONE, nullptr };
+Object const NO_OBJECT = { Object::NONE, nullptr, UP, nullptr };
 
 struct Tile
 {
@@ -43,19 +44,13 @@ struct Tile
   glhckObject* o;
 };
 
-struct Animation
-{
-  glhckObject* o;
-  gasAnimation* a;
-};
-
 struct Game
 {
   glhckCamera* camera;
   std::vector<std::vector<Tile>> level;
   unsigned int levelWidth;
   unsigned int levelHeight;
-  std::vector<Animation> animations;
+  bool animating;
 };
 
 Tile newFloorTile(int x, int y)
@@ -94,14 +89,8 @@ Object newPlayerObject(int x, int y)
 
   glhckObject* o = glhckModelNew("model/pig.glhckm", GRID_SIZE, &animatedParams);
   glhckObjectPositionf(o, x * GRID_SIZE, -0.5, y * GRID_SIZE);
-  unsigned int numAnimations = 0;
-  glhckAnimation** animations = glhckObjectAnimations(o, &numAnimations);
-  std::cout << "Total animations: " << numAnimations << std::endl;
-  for(int i = 0; i < numAnimations; ++i) {
-    std::cout << "Animation " << i << ": " << glhckAnimationGetName(animations[i]) << std::endl;
-  }
-
-  Object object { Object::PLAYER, o, UP };
+  gasAnimation* animation = gas::animationLoop(gas::modelAnimationNew("Stand", 10.0f));
+  Object object { Object::PLAYER, o, UP, animation };
   return object;
 }
 
@@ -111,7 +100,7 @@ Object newBoxObject(int x, int y)
   glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
   glhckObjectMaterial(o, glhckMaterialNew(NULL));
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 192, 192, 64, 255);
-  Object object { Object::BOX, o, UP };
+  Object object { Object::BOX, o, UP, nullptr };
   return object;
 }
 
@@ -155,16 +144,15 @@ Tile& getTile(Game* game, int x, int y)
 gasAnimation* pushAnimationBox(Direction direction)
 {
   Coordinates& delta = DIRECTIONS[direction];
-  gasAnimation* moveParts[] = {
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.7),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.7)
-  };
-  gasAnimation* parts[] = {
-    gasPauseAnimationNew(0.1),
-    gasParallelAnimationNew(moveParts, 2),
-    gasPauseAnimationNew(0.1)
-  };
-  return gasSequentialAnimationNew(parts, 3);
+
+  return gas::sequentialAnimationNew({
+    gas::pauseAnimationNew(0.1),
+    gas::parallelAnimationNew({
+     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.7),
+     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.7)
+    }),
+    gas::pauseAnimationNew(0.1)
+  });
 }
 
 gasAnimation* pushAnimationPlayer(Direction direction, Direction facing)
@@ -176,29 +164,24 @@ gasAnimation* pushAnimationPlayer(Direction direction, Direction facing)
       ? (directionAngle - 360) - facingAngle
       : directionAngle - facingAngle;
 
-  gasAnimation* moveParts1[] = {
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE/3, 0.1),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE/3, 0.1),
-  };
-  gasAnimation* moveParts2[] = {
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.7),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.7),
-  };
-  gasAnimation* moveParts3[] = {
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, -delta.x * GRID_SIZE/3, 0.1),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, -delta.y * GRID_SIZE/3, 0.1),
-  };
-  gasAnimation* moveParts[] = {
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, rotation, 0.1),
-    gasParallelAnimationNew(moveParts1, 2),
-    gasParallelAnimationNew(moveParts2, 2),
-    gasParallelAnimationNew(moveParts3, 2)
-  };
-  gasAnimation* parts[] = {
-    gasSequentialAnimationNew(moveParts, 4),
-    gasModelAnimationNew("Push", 1.0)
-  };
-  return gasParallelAnimationNew(parts, 2);
+  return gas::parallelAnimationNew({
+    gas::sequentialAnimationNew({
+      gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, rotation, 0.1),
+      gas::parallelAnimationNew({
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE/3, 0.1),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE/3, 0.1)
+      }),
+      gas::parallelAnimationNew({
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.7),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.7),
+      }),
+      gas::parallelAnimationNew({
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, -delta.x * GRID_SIZE/3, 0.1),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, -delta.y * GRID_SIZE/3, 0.1),
+      }),
+    }),
+    gas::modelAnimationNew("Push", 1.0)
+  });
 }
 
 gasAnimation* walkAnimationPlayer(Direction direction, Direction facing)
@@ -210,13 +193,18 @@ gasAnimation* walkAnimationPlayer(Direction direction, Direction facing)
       ? (directionAngle - 360) - facingAngle
       : directionAngle - facingAngle;
 
-  gasAnimation* parts[] = {
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, rotation, 0.1),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.5),
-    gasNumberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.5),
-    gasModelAnimationNew("Run", 0.5)
-  };
-  return gasParallelAnimationNew(parts, 4);
+  return gas::parallelAnimationNew({
+    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, rotation, 0.1),
+    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.5),
+    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.5),
+    gas::modelAnimationNew("Run", 0.5)
+  });
+}
+
+void animationComplete(glhckObject* object, void* userdata)
+{
+  Game* game = static_cast<Game*>(userdata);
+  game->animating = false;
 }
 
 void move(Game* game, Direction direction)
@@ -244,21 +232,23 @@ void move(Game* game, Direction direction)
     }
 
     pushing = true;
-    Animation animation = {
-      destinationTile.object.o,
-      pushAnimationBox(direction)
-    };
-    game->animations.push_back(animation);
+    destinationTile.object.a = pushAnimationBox(direction);
     pushDestinationTile.object = destinationTile.object;
     destinationTile.object = NO_OBJECT;
   }
 
-  Animation animation = {
-    currentTile.object.o,
-    pushing ? pushAnimationPlayer(direction, currentTile.object.facing) : walkAnimationPlayer(direction, currentTile.object.facing)
-  };
+  game->animating = true;
+  if(currentTile.object.a)
+  {
+    gas::animationFree(currentTile.object.a);
+  }
 
-  game->animations.push_back(animation);
+  currentTile.object.a = gas::sequentialAnimationNew({
+    pushing ? pushAnimationPlayer(direction, currentTile.object.facing) : walkAnimationPlayer(direction, currentTile.object.facing),
+    gas::actionNew(animationComplete, nullptr, nullptr, nullptr, game),
+    gas::animationLoop(gas::modelAnimationNew("Stand", 10.0f))
+  });
+
   currentTile.object.facing = direction;
   destinationTile.object = currentTile.object;
   currentTile.object = NO_OBJECT;
@@ -282,11 +272,13 @@ Game* newGame()
     "############",
   };
 
+  game->animating = false;
   game->levelWidth = 0;
   game->levelHeight = 0;
 
-  for(std::string const& row : rows)
+  for(auto i = rows.rbegin(); i != rows.rend(); ++i)
   {
+    std::string const& row = *i;
     int y = game->level.size();
     game->level.push_back({});
     std::vector<Tile>& levelRow = game->level.back();
@@ -345,10 +337,9 @@ Game* newGame()
   return game;
 }
 
-
 void playGame(Game* game, glfwContext& ctx)
 {
-  if(game->animations.empty())
+  if(!game->animating)
   {
     if(gameWon(game))
     {
@@ -371,23 +362,21 @@ void playGame(Game* game, glfwContext& ctx)
       move(game, RIGHT);
     }
   }
-  else
-  {
-    for(Animation& animation : game->animations)
-    {
-      gasAnimate(animation.a, animation.o, ctx.deltaTime);
 
-      if(gasAnimationGetState(animation.a) == GAS_ANIMATION_STATE_FINISHED)
+  for(std::vector<Tile>& row : game->level)
+  {
+    for(Tile& tile : row)
+    {
+      if(tile.object.a != nullptr)
       {
-        gasAnimationFree(animation.a);
-        animation.a = nullptr;
+        gasAnimate(tile.object.a, tile.object.o, ctx.deltaTime);
+        if(gasAnimationGetState(tile.object.a) == GAS_ANIMATION_STATE_FINISHED)
+        {
+          gasAnimationFree(tile.object.a);
+          tile.object.a = nullptr;
+        }
       }
     }
-
-    auto removeIter = std::remove_if(game->animations.begin(), game->animations.end(), [](Animation& animation) {
-      return animation.a == nullptr;
-    });
-    game->animations.erase(removeIter, game->animations.end());
   }
 
   glhckRenderClear(GLHCK_DEPTH_BUFFER_BIT | GLHCK_COLOR_BUFFER_BIT);
