@@ -375,7 +375,7 @@ void playGame(Game* game, glfwContext& ctx)
 {
   if(!game->animating)
   {
-    if(gameWon(game))
+    if(gameWon(game) || glfwGetKey(ctx.window, GLFW_KEY_ESCAPE))
     {
       ctx.running = false;
     }
