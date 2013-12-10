@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     return EXIT_FAILURE;
   }
 
-  glhckRenderClearColorb(255, 0, 255, 255);
+  glhckRenderClearColorb(64, 64, 64, 255);
 
   gameloop(ctx);
 

@@ -53,22 +53,31 @@ struct Game
   bool animating;
 };
 
+glhckObject* texturedCube(float size, std::string const& textureFilename)
+{
+  glhckObject* o = glhckCubeNew(size);
+  glhckTexture* texture = glhckTextureNewFromFile(textureFilename.data(), glhckImportDefaultImageParameters(), glhckTextureDefaultParameters());
+  glhckMaterial* material = glhckMaterialNew(texture);
+  glhckObjectMaterial(o, material);
+  glhckMaterialFree(material);
+  glhckTextureFree(texture);
+  return o;
+}
+
 Tile newFloorTile(int x, int y)
 {
-  glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
+  glhckObject* o = texturedCube(GRID_SIZE / 2.0f, "model/floor.jpg");
   glhckObjectPositionf(o, x * GRID_SIZE, -GRID_SIZE, y * GRID_SIZE);
-  glhckObjectMaterial(o, glhckMaterialNew(NULL));
-  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 128, (x + y) % 2 ? 224 : 192, 128, 255);
+  float brightness = (x + y) % 2 ? 224 : 255;
+  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), brightness, brightness, brightness, 255);
   Tile tile { Tile::FLOOR, NO_OBJECT, {x, y}, o };
   return tile;
 }
 
 Tile newWallTile(int x, int y)
 {
-  glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
+  glhckObject* o = texturedCube(GRID_SIZE / 2.0f, "model/wall.jpg");
   glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
-  glhckObjectMaterial(o, glhckMaterialNew(NULL));
-  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 96, 96, 96, 255);
   Tile tile { Tile::WALL, NO_OBJECT, {x, y}, o };
   return tile;
 }
@@ -76,8 +85,7 @@ Tile newTargetTile(int x, int y)
 {
   glhckObject* o = glhckCubeNew(GRID_SIZE / 2.0f);
   glhckObjectPositionf(o, x * GRID_SIZE, -GRID_SIZE, y * GRID_SIZE);
-  glhckObjectMaterial(o, glhckMaterialNew(NULL));
-  glhckMaterialDiffuseb(glhckObjectGetMaterial(o), 192, 255, 192, 64);
+  glhckObjectMaterial(o, glhckMaterialNew(glhckTextureNewFromFile("model/target.jpg", glhckImportDefaultImageParameters(), glhckTextureDefaultParameters())));
   Tile tile { Tile::TARGET, NO_OBJECT, {x, y}, o };
   return tile;
 }
@@ -96,7 +104,7 @@ Object newPlayerObject(int x, int y)
 
 Object newBoxObject(int x, int y)
 {
-  glhckObject* o = glhckModelNew("model/box.glhckm", 2 * GRID_SIZE / 5.0f, nullptr); //glhckCubeNew(2 * GRID_SIZE / 5.0f);
+  glhckObject* o = texturedCube(2 * GRID_SIZE / 5.0f, "model/box.png");
   glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
   Object object { Object::BOX, o, UP, nullptr };
   return object;
@@ -348,6 +356,7 @@ Game* newGame()
 {
   Game* game = new Game;
   game->camera = nullptr;
+
 
   std::vector<std::string> rows {
     "############",
