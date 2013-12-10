@@ -4,6 +4,7 @@
 #include "glfwcontext.h"
 #include "game.h"
 
+#include <iostream>
 #include <cstdlib>
 
 int const WINDOW_WIDTH = 800;
@@ -11,16 +12,34 @@ int const WINDOW_HEIGHT = 480;
 
 bool RUNNING = true;
 
+void errorCallback(int code, char const* message);
 void windowCloseCallback(GLFWwindow* window);
 void windowSizeCallback(GLFWwindow *handle, int width, int height);
 void gameloop(glfwContext& ctx);
-
 int main(int argc, char** argv)
 {
   if (!glfwInit())
+  {
+    std::cerr << "GLFW initialization error" << std::endl;
     return EXIT_FAILURE;
+  }
+  glfwSetErrorCallback(errorCallback);
 
-  glfwWindowHint(GLFW_DEPTH_BITS, 24);
+  glhckCompileFeatures features;
+  glhckGetCompileFeatures(&features);
+  glfwDefaultWindowHints();
+  glfwWindowHint(GLFW_SAMPLES, 4);
+  if(features.render.glesv1 || features.render.glesv2) {
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint(GLFW_DEPTH_BITS, 16);
+  }
+  if(features.render.glesv2) {
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+  }
+  if(features.render.opengl) {
+    glfwWindowHint(GLFW_DEPTH_BITS, 24);
+  }
+
   GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "qb", NULL, NULL);
 
   if(!window)
@@ -41,12 +60,14 @@ int main(int argc, char** argv)
 
   if(!glhckContextCreate(argc, argv))
   {
+    std::cerr << "Failed to create a GLhck context" << std::endl;
     return EXIT_FAILURE;
   }
 
   glhckLogColor(0);
   if(!glhckDisplayCreate(WINDOW_WIDTH, WINDOW_HEIGHT, GLHCK_RENDER_AUTO))
   {
+    std::cerr << "Failed to create a GLhck display" << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -57,6 +78,11 @@ int main(int argc, char** argv)
   glhckContextTerminate();
   glfwTerminate();
   return EXIT_SUCCESS;
+}
+
+void errorCallback(int code, char const* message)
+{
+  std::cerr << "GLFW ERROR: " << message << std::endl;
 }
 
 void windowCloseCallback(GLFWwindow* window)
