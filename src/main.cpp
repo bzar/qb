@@ -5,6 +5,7 @@
 #include "game.h"
 
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 
 int const WINDOW_WIDTH = 800;
@@ -101,7 +102,16 @@ void gameloop(glfwContext& ctx)
   float const FPS_INTERVAL = 5.0f;
   float const START_TIME = glfwGetTime();
 
-  Game* game = newGame();
+  std::ifstream ifs("levels/AlbertoG_Plus2.txt");
+  std::string line;
+  // TODO: Read level pack name
+  while(getline(ifs, line) && !line.empty());
+
+  // TODO: Read level pack description
+  while(getline(ifs, line) && !line.empty());
+
+  Level* level = loadLevel(ifs);
+  Game* game = newGame(level);
 
   while(ctx.running)
   {
@@ -122,6 +132,15 @@ void gameloop(glfwContext& ctx)
     playGame(game, ctx);
 
     glhckRender();
+
+    if(gameFinished(game))
+    {
+      endGame(game);
+      freeLevel(level);
+      level = loadLevel(ifs);
+      game = newGame(level);
+    }
+
     float const frameEndTime = glfwGetTime();
     ctx.previousFrameDuration = frameEndTime - frameStartTime;
 
@@ -132,4 +151,5 @@ void gameloop(glfwContext& ctx)
   }
 
   endGame(game);
+  freeLevel(level);
 }

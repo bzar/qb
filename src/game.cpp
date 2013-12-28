@@ -6,6 +6,7 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 
 float const GRID_SIZE = 1.0f;
 
@@ -16,8 +17,8 @@ struct Coordinates {
   int y;
 };
 
-Coordinates DIRECTIONS[] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}};
-float DIRECTION_ANGLES[] = {0, 180, 90, 270};
+Coordinates DIRECTIONS[] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
+float DIRECTION_ANGLES[] = {180, 0, 270, 90};
 
 struct Object {
   enum Type {
@@ -35,7 +36,7 @@ Object const NO_OBJECT = { Object::NONE, nullptr, UP, nullptr };
 struct Tile
 {
   enum Type {
-    FLOOR, WALL, TARGET
+    NONE, FLOOR, WALL, TARGET
   };
 
   Type type;
@@ -44,12 +45,18 @@ struct Tile
   glhckObject* o;
 };
 
+struct Level
+{
+  std::vector<std::vector<Tile>> tiles;
+  unsigned int width;
+  unsigned int height;
+  std::string name;
+};
+
 struct Game
 {
   glhckCamera* camera;
-  std::vector<std::vector<Tile>> level;
-  unsigned int levelWidth;
-  unsigned int levelHeight;
+  Level* level;
   bool animating;
 };
 
@@ -62,6 +69,11 @@ glhckObject* texturedCube(float size, std::string const& textureFilename)
   glhckMaterialFree(material);
   glhckTextureFree(texture);
   return o;
+}
+
+Tile newEmptyTile(int x, int y)
+{
+  return { Tile::NONE, NO_OBJECT, {x, y}, nullptr };
 }
 
 Tile newFloorTile(int x, int y)
@@ -98,7 +110,7 @@ Object newPlayerObject(int x, int y)
   glhckObject* o = glhckModelNew("model/pig.glhckm", GRID_SIZE, &animatedParams);
   glhckObjectPositionf(o, x * GRID_SIZE, -0.5, y * GRID_SIZE);
   gasAnimation* animation = gas::animationLoop(gas::modelAnimationNew("Stand", 10.0f));
-  Object object { Object::PLAYER, o, UP, animation };
+  Object object { Object::PLAYER, o, DOWN, animation };
   return object;
 }
 
@@ -110,25 +122,9 @@ Object newBoxObject(int x, int y)
   return object;
 }
 
-bool gameWon(Game* game)
-{
-  for(std::vector<Tile>& rows : game->level)
-  {
-    for(Tile& tile : rows)
-    {
-      if(tile.type == Tile::TARGET && tile.object.type != Object::BOX)
-      {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
 Coordinates findPlayer(Game* game)
 {
-  for(std::vector<Tile>& rows : game->level)
+  for(std::vector<Tile>& rows : game->level->tiles)
   {
     for(Tile& tile : rows)
     {
@@ -144,7 +140,7 @@ Coordinates findPlayer(Game* game)
 
 Tile& getTile(Game* game, int x, int y)
 {
-  return game->level.at(y).at(x);
+  return game->level->tiles.at(y).at(x);
 }
 
 gasAnimation* pushAnimationBox(Direction direction)
@@ -260,120 +256,38 @@ void move(Game* game, Direction direction)
   currentTile.object = NO_OBJECT;
 }
 
-void unloadLevel(Game* game)
+void loadLevel(Game* game, Level* level)
 {
-  for(std::vector<Tile>& rows : game->level)
-  {
-    for(Tile& tile : rows)
-    {
-      glhckObjectFree(tile.o);
-      if(tile.object.type != Object::NONE)
-      {
-        glhckObjectFree(tile.object.o);
-      }
-      if(tile.object.a)
-      {
-        gasAnimationFree(tile.object.a);
-      }
-    }
-  }
+  game->animating = false;
+  game->level = level;
 
-  game->level.clear();
   if(game->camera)
   {
     glhckCameraFree(game->camera);
   }
-}
-
-void loadLevel(Game* game, std::vector<std::string> const& rows)
-{
-  unloadLevel(game);
-
-  game->animating = false;
-  game->levelWidth = 0;
-  game->levelHeight = 0;
-
-  for(auto i = rows.rbegin(); i != rows.rend(); ++i)
-  {
-    std::string const& row = *i;
-    int y = game->level.size();
-    game->level.push_back({});
-    std::vector<Tile>& levelRow = game->level.back();
-    for(char const& c : row)
-    {
-      int x = levelRow.size();
-      if(c == '#')
-      {
-        levelRow.push_back(newWallTile(x, y));
-      }
-      else if(c == '.')
-      {
-        levelRow.push_back(newFloorTile(x, y));
-      }
-      else if(c == 'x')
-      {
-        levelRow.push_back(newTargetTile(x, y));
-      }
-      else if(c == '@')
-      {
-        Tile tile = newFloorTile(x, y);
-        tile.object = newPlayerObject(x, y);
-        levelRow.push_back(tile);
-      }
-      else if(c == 'B')
-      {
-        Tile tile = newFloorTile(x, y);
-        tile.object = newBoxObject(x, y);
-        levelRow.push_back(tile);
-      }
-    }
-
-    if(levelRow.size() > game->levelWidth)
-    {
-      game->levelWidth = levelRow.size();
-    }
-  }
-
-  game->levelHeight = game->level.size();
-
   game->camera = glhckCameraNew();
+
   glhckCameraProjection(game->camera, GLHCK_PROJECTION_PERSPECTIVE);
   glhckObjectPositionf(glhckCameraGetObject(game->camera),
-                       game->levelWidth * GRID_SIZE / 2,
-                       game->levelWidth * GRID_SIZE,
-                       -(game->levelWidth * GRID_SIZE / 2));
+                       game->level->width * GRID_SIZE / 2,
+                       game->level->width * GRID_SIZE * 2,
+                       (game->level->height * GRID_SIZE));
   glhckObjectTargetf(glhckCameraGetObject(game->camera),
-                     game->levelWidth * GRID_SIZE / 2,
+                     game->level->width * GRID_SIZE / 2,
                      0,
-                     game->levelHeight * GRID_SIZE / 2);
+                     game->level->height * GRID_SIZE / 2);
 
   glhckCameraRange(game->camera, 0.1f, 100.0f);
   glhckCameraFov(game->camera, 45);
   glhckCameraUpdate(game->camera);
 }
 
-Game* newGame()
+Game* newGame(Level* level)
 {
   Game* game = new Game;
   game->camera = nullptr;
 
-
-  std::vector<std::string> rows {
-    "############",
-    "#..........#",
-    "#....x.....#",
-    "#..........#",
-    "#...###....#",
-    "#..........#",
-    "#..@..B....#",
-    "#..........#",
-    "#..........#",
-    "#x...B.....#",
-    "#..........#",
-    "############",
-  };
-
-  loadLevel(game, rows);
+  loadLevel(game, level);
 
   return game;
 }
@@ -382,7 +296,7 @@ void playGame(Game* game, glfwContext& ctx)
 {
   if(!game->animating)
   {
-    if(gameWon(game) || glfwGetKey(ctx.window, GLFW_KEY_ESCAPE))
+    if(glfwGetKey(ctx.window, GLFW_KEY_ESCAPE))
     {
       ctx.running = false;
     }
@@ -404,7 +318,7 @@ void playGame(Game* game, glfwContext& ctx)
     }
   }
 
-  for(std::vector<Tile>& row : game->level)
+  for(std::vector<Tile>& row : game->level->tiles)
   {
     for(Tile& tile : row)
     {
@@ -423,11 +337,14 @@ void playGame(Game* game, glfwContext& ctx)
   glhckRenderClear(GLHCK_DEPTH_BUFFER_BIT | GLHCK_COLOR_BUFFER_BIT);
   glhckCameraUpdate(game->camera);
 
-  for(std::vector<Tile>& rows : game->level)
+  for(std::vector<Tile>& rows : game->level->tiles)
   {
     for(Tile& tile : rows)
     {
-      glhckObjectDraw(tile.o);
+      if(tile.type != Tile::NONE)
+      {
+        glhckObjectDraw(tile.o);
+      }
       if(tile.object.type != Object::NONE)
       {
         glhckObjectDraw(tile.object.o);
@@ -438,6 +355,143 @@ void playGame(Game* game, glfwContext& ctx)
 
 void endGame(Game* game)
 {
-  unloadLevel(game);
   delete game;
+}
+
+
+Level* loadLevel(std::istream& stream)
+{
+  std::vector<std::string> rows;
+  std::string line;
+
+  while(std::getline(stream, line))
+  {
+    if(line.empty())
+      break;
+
+    rows.push_back(line);
+  }
+
+  return loadLevel(rows);
+}
+
+
+Level* loadLevel(std::string const& str)
+{
+  std::istringstream iss(str);
+  std::vector<std::string> rows;
+  std::string line;
+
+  while(std::getline(iss, line))
+  {
+    rows.push_back(line);
+  }
+
+  return loadLevel(rows);
+}
+
+Level* loadLevel(std::vector<std::string> const& rows)
+{
+  Level* level = new Level;
+  level->height = rows.size();
+  level->width = 0;
+
+  for(auto i = rows.begin(); i != rows.end(); ++i)
+  {
+    std::string const& row = *i;
+
+    if(row.front() == ';')
+    {
+      level->name = row.size() >= 3 ? row.substr(2) : "<unnamed>";
+    }
+    else
+    {
+      bool firstWallEncountered = false;
+      int y = level->tiles.size();
+      level->tiles.push_back({});
+      std::vector<Tile>& levelRow = level->tiles.back();
+      for(char const& c : row)
+      {
+        int x = levelRow.size();
+        if(c == '#')
+        {
+          levelRow.push_back(newWallTile(x, y));
+          firstWallEncountered = true;
+        }
+        else if(c == ' ')
+        {
+          levelRow.push_back(firstWallEncountered ? newFloorTile(x, y) : newEmptyTile(x, y));
+        }
+        else if(c == '.')
+        {
+          levelRow.push_back(newTargetTile(x, y));
+        }
+        else if(c == '@' || c == '+')
+        {
+          Tile tile = newFloorTile(x, y);
+          tile.object = newPlayerObject(x, y);
+          levelRow.push_back(tile);
+        }
+        else if(c == '$')
+        {
+          Tile tile = newFloorTile(x, y);
+          tile.object = newBoxObject(x, y);
+          levelRow.push_back(tile);
+        }
+      }
+
+      if(levelRow.size() > level->width)
+      {
+        level->width = levelRow.size();
+      }
+    }
+  }
+
+  return level;
+}
+
+
+void freeLevel(Level* level)
+{
+  for(auto& row : level->tiles)
+  {
+    for(Tile& tile : row)
+    {
+      if(tile.type != Tile::NONE)
+      {
+        glhckObjectFree(tile.o);
+      }
+      if(tile.object.type != Object::NONE)
+      {
+        glhckObjectFree(tile.object.o);
+      }
+      if(tile.object.a)
+      {
+        gasAnimationFree(tile.object.a);
+      }
+    }
+  }
+
+  delete level;
+}
+
+bool levelFinished(Level* level)
+{
+  for(std::vector<Tile>& rows : level->tiles)
+  {
+    for(Tile& tile : rows)
+    {
+      if(tile.type == Tile::TARGET && tile.object.type != Object::BOX)
+      {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool gameFinished(Game* game)
+{
+  return !game->animating && levelFinished(game->level);
 }
