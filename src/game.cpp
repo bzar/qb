@@ -56,7 +56,7 @@ struct Level
 struct Game
 {
   glhckCamera* camera;
-  Level* level;
+  Level level;
   bool animating;
 };
 
@@ -76,13 +76,13 @@ Tile newEmptyTile(int x, int y)
   return { Tile::NONE, NO_OBJECT, {x, y}, nullptr };
 }
 
-Tile newFloorTile(int x, int y)
+Tile newFloorTile(int x, int y, Object const& object = NO_OBJECT)
 {
   glhckObject* o = texturedCube(GRID_SIZE / 2.0f, "model/floor.jpg");
   glhckObjectPositionf(o, x * GRID_SIZE, -GRID_SIZE, y * GRID_SIZE);
   float brightness = (x + y) % 2 ? 224 : 255;
   glhckMaterialDiffuseb(glhckObjectGetMaterial(o), brightness, brightness, brightness, 255);
-  Tile tile { Tile::FLOOR, NO_OBJECT, {x, y}, o };
+  Tile tile { Tile::FLOOR, object, {x, y}, o };
   return tile;
 }
 
@@ -124,7 +124,7 @@ Object newBoxObject(int x, int y)
 
 Coordinates findPlayer(Game* game)
 {
-  for(std::vector<Tile>& rows : game->level->tiles)
+  for(std::vector<Tile>& rows : game->level.tiles)
   {
     for(Tile& tile : rows)
     {
@@ -140,7 +140,7 @@ Coordinates findPlayer(Game* game)
 
 Tile& getTile(Game* game, int x, int y)
 {
-  return game->level->tiles.at(y).at(x);
+  return game->level.tiles.at(y).at(x);
 }
 
 gasAnimation* pushAnimationBox(Direction direction)
@@ -256,10 +256,58 @@ void move(Game* game, Direction direction)
   currentTile.object = NO_OBJECT;
 }
 
-void loadLevel(Game* game, Level* level)
+Tile createTile(LevelPack::Level::Tile const tile, int const x, int const y)
 {
+  switch(tile)
+  {
+    case LevelPack::Level::NONE: return newEmptyTile(x, y);
+    case LevelPack::Level::FLOOR: return newFloorTile(x, y);
+    case LevelPack::Level::WALL: return newWallTile(x, y);
+    case LevelPack::Level::BOX: return newFloorTile(x, y, newBoxObject(x, y));
+    case LevelPack::Level::TARGET: return newTargetTile(x, y);
+    case LevelPack::Level::PLAYER: return newFloorTile(x, y, newPlayerObject(x, y));
+    default: return newEmptyTile(x, y);
+  }
+}
+
+void loadLevel(Game* game, LevelPack::Level const& level)
+{
+  for(auto& row : game->level.tiles)
+  {
+    for(Tile& tile : row)
+    {
+      if(tile.type != Tile::NONE)
+      {
+        glhckObjectFree(tile.o);
+      }
+      if(tile.object.type != Object::NONE)
+      {
+        glhckObjectFree(tile.object.o);
+      }
+      if(tile.object.a)
+      {
+        gasAnimationFree(tile.object.a);
+      }
+    }
+  }
+
+  game->level.width = level.width;
+  game->level.height = level.height;
+  game->level.name = level.name;
+
+  for(auto levelRow : level.tiles)
+  {
+    int y = game->level.tiles.size();
+    game->level.tiles.push_back({});
+    auto& row = game->level.tiles.back();
+    for(auto tile : levelRow)
+    {
+      int x = game->level.tiles.back().size();
+      row.push_back(createTile(tile, x, y));
+    }
+  }
+
   game->animating = false;
-  game->level = level;
 
   if(game->camera)
   {
@@ -269,20 +317,20 @@ void loadLevel(Game* game, Level* level)
 
   glhckCameraProjection(game->camera, GLHCK_PROJECTION_PERSPECTIVE);
   glhckObjectPositionf(glhckCameraGetObject(game->camera),
-                       game->level->width * GRID_SIZE / 2,
-                       game->level->width * GRID_SIZE * 2,
-                       (game->level->height * GRID_SIZE));
+                       game->level.width * GRID_SIZE / 2,
+                       game->level.width * GRID_SIZE * 2,
+                       (game->level.height * GRID_SIZE));
   glhckObjectTargetf(glhckCameraGetObject(game->camera),
-                     game->level->width * GRID_SIZE / 2,
+                     game->level.width * GRID_SIZE / 2,
                      0,
-                     game->level->height * GRID_SIZE / 2);
+                     game->level.height * GRID_SIZE / 2);
 
   glhckCameraRange(game->camera, 0.1f, 100.0f);
   glhckCameraFov(game->camera, 45);
   glhckCameraUpdate(game->camera);
 }
 
-Game* newGame(Level* level)
+Game* newGame(const LevelPack::Level& level)
 {
   Game* game = new Game;
   game->camera = nullptr;
@@ -318,7 +366,7 @@ void playGame(Game* game, glfwContext& ctx)
     }
   }
 
-  for(std::vector<Tile>& row : game->level->tiles)
+  for(std::vector<Tile>& row : game->level.tiles)
   {
     for(Tile& tile : row)
     {
@@ -337,7 +385,7 @@ void playGame(Game* game, glfwContext& ctx)
   glhckRenderClear(GLHCK_DEPTH_BUFFER_BIT | GLHCK_COLOR_BUFFER_BIT);
   glhckCameraUpdate(game->camera);
 
-  for(std::vector<Tile>& rows : game->level->tiles)
+  for(std::vector<Tile>& rows : game->level.tiles)
   {
     for(Tile& tile : rows)
     {
@@ -358,128 +406,11 @@ void endGame(Game* game)
   delete game;
 }
 
-
-Level* loadLevel(std::istream& stream)
+bool levelFinished(Level const& level)
 {
-  std::vector<std::string> rows;
-  std::string line;
-
-  while(std::getline(stream, line))
+  for(auto row : level.tiles)
   {
-    if(line.empty())
-      break;
-
-    rows.push_back(line);
-  }
-
-  return loadLevel(rows);
-}
-
-
-Level* loadLevel(std::string const& str)
-{
-  std::istringstream iss(str);
-  std::vector<std::string> rows;
-  std::string line;
-
-  while(std::getline(iss, line))
-  {
-    rows.push_back(line);
-  }
-
-  return loadLevel(rows);
-}
-
-Level* loadLevel(std::vector<std::string> const& rows)
-{
-  Level* level = new Level;
-  level->height = rows.size();
-  level->width = 0;
-
-  for(auto i = rows.begin(); i != rows.end(); ++i)
-  {
-    std::string const& row = *i;
-
-    if(row.front() == ';')
-    {
-      level->name = row.size() >= 3 ? row.substr(2) : "<unnamed>";
-    }
-    else
-    {
-      bool firstWallEncountered = false;
-      int y = level->tiles.size();
-      level->tiles.push_back({});
-      std::vector<Tile>& levelRow = level->tiles.back();
-      for(char const& c : row)
-      {
-        int x = levelRow.size();
-        if(c == '#')
-        {
-          levelRow.push_back(newWallTile(x, y));
-          firstWallEncountered = true;
-        }
-        else if(c == ' ')
-        {
-          levelRow.push_back(firstWallEncountered ? newFloorTile(x, y) : newEmptyTile(x, y));
-        }
-        else if(c == '.')
-        {
-          levelRow.push_back(newTargetTile(x, y));
-        }
-        else if(c == '@' || c == '+')
-        {
-          Tile tile = newFloorTile(x, y);
-          tile.object = newPlayerObject(x, y);
-          levelRow.push_back(tile);
-        }
-        else if(c == '$')
-        {
-          Tile tile = newFloorTile(x, y);
-          tile.object = newBoxObject(x, y);
-          levelRow.push_back(tile);
-        }
-      }
-
-      if(levelRow.size() > level->width)
-      {
-        level->width = levelRow.size();
-      }
-    }
-  }
-
-  return level;
-}
-
-
-void freeLevel(Level* level)
-{
-  for(auto& row : level->tiles)
-  {
-    for(Tile& tile : row)
-    {
-      if(tile.type != Tile::NONE)
-      {
-        glhckObjectFree(tile.o);
-      }
-      if(tile.object.type != Object::NONE)
-      {
-        glhckObjectFree(tile.object.o);
-      }
-      if(tile.object.a)
-      {
-        gasAnimationFree(tile.object.a);
-      }
-    }
-  }
-
-  delete level;
-}
-
-bool levelFinished(Level* level)
-{
-  for(std::vector<Tile>& rows : level->tiles)
-  {
-    for(Tile& tile : rows)
+    for(Tile const& tile : row)
     {
       if(tile.type == Tile::TARGET && tile.object.type != Object::BOX)
       {

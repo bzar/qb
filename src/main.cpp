@@ -102,18 +102,12 @@ void gameloop(glfwContext& ctx)
   float const FPS_INTERVAL = 5.0f;
   float const START_TIME = glfwGetTime();
 
-  std::ifstream ifs("levels/AlbertoG_Plus2.txt");
-  std::string line;
-  // TODO: Read level pack name
-  while(getline(ifs, line) && !line.empty());
+  LevelPack levelPack("levels/AlbertoG_Plus2.txt");
 
-  // TODO: Read level pack description
-  while(getline(ifs, line) && !line.empty());
+  int levelNum = 0;
+  Game* game = nullptr;
 
-  Level* level = loadLevel(ifs);
-  Game* game = newGame(level);
-
-  while(ctx.running)
+  while(ctx.running && levelNum < levelPack.size())
   {
     float const frameStartTime = glfwGetTime();
     ctx.deltaTime = frameStartTime - ctx.previousFrameStartTime;
@@ -129,6 +123,11 @@ void gameloop(glfwContext& ctx)
 
     glfwPollEvents();
 
+    if(game == nullptr)
+    {
+      game = newGame(levelPack.getLevel(levelNum));
+    }
+
     playGame(game, ctx);
 
     glhckRender();
@@ -136,9 +135,8 @@ void gameloop(glfwContext& ctx)
     if(gameFinished(game))
     {
       endGame(game);
-      freeLevel(level);
-      level = loadLevel(ifs);
-      game = newGame(level);
+      levelNum += 1;
+      game = nullptr;
     }
 
     float const frameEndTime = glfwGetTime();
@@ -150,6 +148,8 @@ void gameloop(glfwContext& ctx)
     ctx.fpsFrame += 1;
   }
 
-  endGame(game);
-  freeLevel(level);
+  if(game != nullptr)
+  {
+    endGame(game);
+  }
 }
