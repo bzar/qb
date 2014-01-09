@@ -150,8 +150,8 @@ gasAnimation* pushAnimationBox(Direction direction)
   return gas::sequentialAnimationNew({
     gas::pauseAnimationNew(0.1),
     gas::parallelAnimationNew({
-     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.7),
-     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.7)
+     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.7),
+     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.7)
     }),
     gas::pauseAnimationNew(0.1)
   });
@@ -168,18 +168,18 @@ gasAnimation* pushAnimationPlayer(Direction direction, Direction facing)
 
   return gas::parallelAnimationNew({
     gas::sequentialAnimationNew({
-      gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, rotation, 0.1),
+      gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, gasEasingLinear, rotation, 0.1),
       gas::parallelAnimationNew({
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE/3, 0.1),
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE/3, 0.1)
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE/3, 0.1),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE/3, 0.1)
       }),
       gas::parallelAnimationNew({
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.7),
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.7),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.7),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.7),
       }),
       gas::parallelAnimationNew({
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, -delta.x * GRID_SIZE/3, 0.1),
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, -delta.y * GRID_SIZE/3, 0.1),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, -delta.x * GRID_SIZE/3, 0.1),
+       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, -delta.y * GRID_SIZE/3, 0.1),
       }),
     }),
     gas::modelAnimationNew("Push", 1.0)
@@ -196,9 +196,9 @@ gasAnimation* walkAnimationPlayer(Direction direction, Direction facing)
       : directionAngle - facingAngle;
 
   return gas::parallelAnimationNew({
-    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, GAS_EASING_LINEAR, rotation, 0.1),
-    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, GAS_EASING_LINEAR, delta.x * GRID_SIZE, 0.5),
-    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, GAS_EASING_LINEAR, delta.y * GRID_SIZE, 0.5),
+    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, gasEasingLinear, rotation, 0.1),
+    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.5),
+    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.5),
     gas::modelAnimationNew("Run", 0.5)
   });
 }
