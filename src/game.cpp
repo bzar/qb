@@ -28,10 +28,10 @@ struct Object {
   Type type;
   glhckObject* o;
   Direction facing;
-  gasAnimation* a;
+  gas::Animation a;
 };
 
-Object const NO_OBJECT = { Object::NONE, nullptr, UP, nullptr };
+Object const NO_OBJECT = { Object::NONE, nullptr, UP, gas::Animation::NONE };
 
 struct Tile
 {
@@ -109,8 +109,9 @@ Object newPlayerObject(int x, int y)
 
   glhckObject* o = glhckModelNew("model/pig.glhckm", GRID_SIZE, &animatedParams);
   glhckObjectPositionf(o, x * GRID_SIZE, -0.5, y * GRID_SIZE);
-  gasAnimation* animation = gas::animationLoop(gas::modelAnimationNew("Stand", 10.0f));
-  Object object { Object::PLAYER, o, DOWN, animation };
+  gas::Animation animation = gas::Animation::model("Stand", 10.0f);
+  animation.loop();
+  Object object { Object::PLAYER, o, DOWN, std::move(animation) };
   return object;
 }
 
@@ -118,7 +119,7 @@ Object newBoxObject(int x, int y)
 {
   glhckObject* o = texturedCube(2 * GRID_SIZE / 5.0f, "model/box.png");
   glhckObjectPositionf(o, x * GRID_SIZE, 0, y * GRID_SIZE);
-  Object object { Object::BOX, o, UP, nullptr };
+  Object object { Object::BOX, o, UP, gas::Animation::NONE };
   return object;
 }
 
@@ -143,21 +144,21 @@ Tile& getTile(Game* game, int x, int y)
   return game->level.tiles.at(y).at(x);
 }
 
-gasAnimation* pushAnimationBox(Direction direction)
+gas::Animation pushAnimationBox(Direction direction)
 {
   Coordinates& delta = DIRECTIONS[direction];
 
-  return gas::sequentialAnimationNew({
-    gas::pauseAnimationNew(0.1),
-    gas::parallelAnimationNew({
-     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.7),
-     gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.7)
+  return gas::Animation::sequential({
+    gas::Animation::pause(0.1),
+    gas::Animation::parallel({
+     gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.7),
+     gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.7)
     }),
-    gas::pauseAnimationNew(0.1)
+    gas::Animation::pause(0.1)
   });
 }
 
-gasAnimation* pushAnimationPlayer(Direction direction, Direction facing)
+gas::Animation pushAnimationPlayer(Direction direction, Direction facing)
 {
   Coordinates& delta = DIRECTIONS[direction];
   int const directionAngle = DIRECTION_ANGLES[direction];
@@ -166,27 +167,27 @@ gasAnimation* pushAnimationPlayer(Direction direction, Direction facing)
       ? (directionAngle - 360) - facingAngle
       : directionAngle - facingAngle;
 
-  return gas::parallelAnimationNew({
-    gas::sequentialAnimationNew({
-      gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, gasEasingLinear, rotation, 0.1),
-      gas::parallelAnimationNew({
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE/3, 0.1),
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE/3, 0.1)
+  return gas::Animation::parallel({
+    gas::Animation::sequential({
+      gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, gasEasingLinear, rotation, 0.1),
+      gas::Animation::parallel({
+       gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE/3, 0.1),
+       gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE/3, 0.1)
       }),
-      gas::parallelAnimationNew({
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.7),
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.7),
+      gas::Animation::parallel({
+       gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.7),
+       gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.7),
       }),
-      gas::parallelAnimationNew({
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, -delta.x * GRID_SIZE/3, 0.1),
-       gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, -delta.y * GRID_SIZE/3, 0.1),
+      gas::Animation::parallel({
+       gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, -delta.x * GRID_SIZE/3, 0.1),
+       gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, -delta.y * GRID_SIZE/3, 0.1),
       }),
     }),
-    gas::modelAnimationNew("Push", 1.0)
+    gas::Animation::model("Push", 1.0)
   });
 }
 
-gasAnimation* walkAnimationPlayer(Direction direction, Direction facing)
+gas::Animation walkAnimationPlayer(Direction direction, Direction facing)
 {
   Coordinates& delta = DIRECTIONS[direction];
   int const directionAngle = DIRECTION_ANGLES[direction];
@@ -195,11 +196,11 @@ gasAnimation* walkAnimationPlayer(Direction direction, Direction facing)
       ? (directionAngle - 360) - facingAngle
       : directionAngle - facingAngle;
 
-  return gas::parallelAnimationNew({
-    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, gasEasingLinear, rotation, 0.1),
-    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.5),
-    gas::numberAnimationNewDelta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.5),
-    gas::modelAnimationNew("Run", 0.5)
+  return gas::Animation::parallel({
+    gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_ROT_Y, gasEasingLinear, rotation, 0.1),
+    gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_X, gasEasingLinear, delta.x * GRID_SIZE, 0.5),
+    gas::Animation::delta(GAS_NUMBER_ANIMATION_TARGET_Z, gasEasingLinear, delta.y * GRID_SIZE, 0.5),
+    gas::Animation::model("Run", 0.5)
   });
 }
 
@@ -235,24 +236,20 @@ void move(Game* game, Direction direction)
 
     pushing = true;
     destinationTile.object.a = pushAnimationBox(direction);
-    pushDestinationTile.object = destinationTile.object;
+    pushDestinationTile.object = std::move(destinationTile.object);
     destinationTile.object = NO_OBJECT;
   }
 
   game->animating = true;
-  if(currentTile.object.a)
-  {
-    gas::animationFree(currentTile.object.a);
-  }
 
-  currentTile.object.a = gas::sequentialAnimationNew({
+  currentTile.object.a = gas::Animation::sequential({
     pushing ? pushAnimationPlayer(direction, currentTile.object.facing) : walkAnimationPlayer(direction, currentTile.object.facing),
-    gas::actionNew(animationComplete, nullptr, nullptr, nullptr, game),
-    gas::animationLoop(gas::modelAnimationNew("Stand", 10.0f))
+    gas::Animation::action(animationComplete, game),
+    gas::Animation::model("Stand", 10.0f).loop()
   });
 
   currentTile.object.facing = direction;
-  destinationTile.object = currentTile.object;
+  destinationTile.object = std::move(currentTile.object);
   currentTile.object = NO_OBJECT;
 }
 
@@ -286,7 +283,7 @@ void loadLevel(Game* game, LevelPack::Level const& level)
       }
       if(tile.object.a)
       {
-        gasAnimationFree(tile.object.a);
+        tile.object.a = gas::Animation::NONE;
       }
     }
   }
@@ -370,13 +367,12 @@ void playGame(Game* game, glfwContext& ctx)
   {
     for(Tile& tile : row)
     {
-      if(tile.object.a != nullptr)
+      if(tile.object.a)
       {
-        gasAnimate(tile.object.a, tile.object.o, ctx.deltaTime);
-        if(gasAnimationGetState(tile.object.a) == GAS_ANIMATION_STATE_FINISHED)
+        tile.object.a.animate(tile.object.o, ctx.deltaTime);
+        if(tile.object.a.getState() == GAS_ANIMATION_STATE_FINISHED)
         {
-          gasAnimationFree(tile.object.a);
-          tile.object.a = nullptr;
+          tile.object.a = gas::Animation::NONE;
         }
       }
     }
@@ -408,7 +404,7 @@ void endGame(Game* game)
 
 bool levelFinished(Level const& level)
 {
-  for(auto row : level.tiles)
+  for(auto& row : level.tiles)
   {
     for(Tile const& tile : row)
     {
